@@ -7,9 +7,11 @@ exports.getCustomer = async (user) => {
     return customer;
 }
 
-exports.createCustomer = async (uid) => {
+exports.createCustomer = async (email,name,uid) => {
     const newCustomer = await stripe.customers.create({
-        description: `Customer account created for ${uid}`
+        description: `Customer account created for ${uid}`,
+        email: email,
+        name: name,
     })
     return newCustomer;
 }
@@ -22,4 +24,11 @@ exports.createPaymentIntent = async (amount, currency, customer, description) =>
         description: description
     });
     return paymentIntent;
+}
+
+exports.getPaymentIntent = async (client_secret) => {
+    const paymentRetrieval = await stripe.paymentIntents.retrieve(
+        client_secret
+    );
+    return paymentRetrieval;
 }
