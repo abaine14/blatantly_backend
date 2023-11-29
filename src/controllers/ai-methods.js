@@ -1,7 +1,6 @@
 const express = require("express");
 const dotenv = require("dotenv").config();
 const deepai = require("deepai");
-const Jimp = require("jimp");
 const fetch = require('node-fetch');
 
 const fs = require("fs");

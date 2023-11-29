@@ -1,12 +1,11 @@
 const routes = require("express").Router();
-const aiMethods = require("../controllers/aiMethods");
+const aiMethods = require("../controllers/ai-methods");
 const imageToBase64 = require("image-to-base64");
 const fs = require("fs");
 const { blob } = require("stream/consumers");
 const { async } = require("@firebase/util");
 const os = require("os");
 const _ = require("lodash");
-const sharp = require('sharp');
 
 routes.post("/generateImage/:imageType", async (req, res) => {
   const data = req.body;
