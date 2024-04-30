@@ -80,7 +80,7 @@
     "fill-range": "^7.0.1",
     "finalhandler": "^1.2.0",
     "firebase-admin": "^11.10.1",
-    "firebase-functions": "^4.5.0",
+    "firebase-functions": "^4.7.0",
     "follow-redirects": "^1.15.2",
     "form-data": "^4.0.0",
     "forwarded": "^0.2.0",

@@ -21,8 +21,10 @@ exports.chatPrompt = async (prompt, chatCase) => {
   };
   return chatResponse;
 };
-exports.enhancedPrompt = async (prompt, chatCase) => {
-  const result = await model.generateContent(`${enhancmentDriver} ${prompt}`);
+exports.enhancedPrompt = async (prompt, style, chatCase) => {
+  const result = await model.generateContent(
+    `${enhancmentDriver}, ${prompt}, in an ${style} style.`
+  );
   const response = result.response;
   const chatResponse = {
     chat_data: {
