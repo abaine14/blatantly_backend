@@ -1,17 +1,16 @@
 const fetch = require("node-fetch");
 const FormData = require("form-data");
 const imageToBase64 = require("image-to-base64");
-const sharp = require("sharp");
+const geminiConfig = require("../controllers/gemini.json");
 
 const fs = require("fs");
 const os = require("os");
-const { initializeApp } = require("firebase-admin/app");
-const { getStorage, ref, uploadBytes } = require("firebase-admin/storage");
 
 const admin = require("firebase-admin");
 
 const serviceAccount = require("./aiart-376720-firebase-adminsdk-ee3ol-d01f0db637.json");
-const { async, base64 } = require("@firebase/util");
+const deepAi = require("deepai");
+deepAi.setApiKey(geminiConfig.deepAiKey);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
@@ -170,7 +169,7 @@ exports.editImage = async (url, id, newId, style, imageCount, textPrompt) => {
   formData.append("cfg_scale", 7);
   formData.append("samples", imageCount);
   formData.append("steps", 40);
-  formData.append("style_preset", style);
+  //formData.append("style_preset", style);
 
   const response = await fetch(path, {
     method: "POST",
@@ -234,4 +233,73 @@ exports.createWallpaper = async (id, newId, url, width, height) => {
 
   const image = await response.arrayBuffer();
   fs.writeFileSync(os.tmpdir() + `/${newId}.jpg`, Buffer.from(image));
+};
+
+exports.deepAiImage = async (id, prompt, style) => {
+  const resp = await fetch(`https://api.deepai.org/api/${style}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "api-key": geminiConfig.deepAiKey,
+    },
+    body: JSON.stringify({
+      text: prompt,
+      width: "1024",
+      height: "1024",
+      grid_size: "1",
+      image_generator_version: "genius",
+    }),
+  });
+
+  const result = await resp.json();
+
+  await imageToBase64(result.output_url).then((response) => {
+    const binaryString = atob(response);
+    const length = binaryString.length;
+    const bytes = new Uint8Array(length);
+    for (var i = 0; i < length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    const buffer = new Buffer.from(bytes.buffer, "base64");
+    fs.writeFileSync(os.tmpdir() + `/${id}.jpg`, buffer);
+    setTimeout(() => {
+      fs.unlink(os.tmpdir() + `/${id}.jpg`, (err) => {
+        if (err) throw err;
+      });
+    }, 3000);
+  });
+};
+
+exports.deepAiImageEdit = async (id, imageUrl, prompt) => {
+  const resp = await fetch("https://api.deepai.org/api/image-editor", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "api-key": geminiConfig.deepAiKey,
+    },
+    body: JSON.stringify({
+      image: imageUrl,
+      text: prompt,
+      image_generator_version: "genius",
+    }),
+  });
+
+  const result = await resp.json();
+  if (result.output_url) {
+    imageToBase64(result.output_url).then((response) => {
+      const binaryString = atob(response);
+      const length = binaryString.length;
+      const bytes = new Uint8Array(length);
+      for (var i = 0; i < length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const buffer = new Buffer.from(bytes.buffer, "base64");
+      fs.writeFileSync(`controllers/${id}.jpg`, buffer);
+      setTimeout(() => {
+        fs.unlink(`controllers/${id}.jpg`, (err) => {
+          if (err) throw err;
+        });
+      }, 3000);
+    });
+  }
 };

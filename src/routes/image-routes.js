@@ -1,44 +1,8 @@
 const routes = require("express").Router();
 const aiMethods = require("../controllers/ai-methods");
-const imageToBase64 = require("image-to-base64");
-const fetch = require("node-fetch");
-const FormData = require("form-data");
-const sharp = require("sharp");
 const fs = require("fs");
 const os = require("os");
-const _ = require("lodash");
-
-routes.post("/convertImage/:id", async (req, res) => {
-  const url = req.body.url;
-  const imageType = req.body.imageType;
-  await imageToBase64(url)
-    .then((response) => {
-      const binaryString = atob(response);
-      const length = binaryString.length;
-      const bytes = new Uint8Array(length);
-      for (var i = 0; i < length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-      const buffer = new Buffer.from(bytes.buffer, "base64");
-      fs.writeFileSync(os.tmpdir() + `/${req.params.id}.jpg`, buffer);
-      setTimeout(() => {
-        fs.unlink(os.tmpdir() + `/${req.params.id}.jpg`, (err) => {
-          if (err) throw err;
-        });
-      }, 3000);
-
-      aiMethods.setReference(req.params.id, imageType).then((_) => {
-        aiMethods
-          .getDownloadUrl(req.params.id, imageType)
-          .then((downloadUrl) => {
-            res.status(200).json({ downloadUrl: downloadUrl[0] });
-          });
-      });
-    })
-    .catch((error) => {
-      console.log(error);
-    });
-});
+const accountCheck = require("../caching/account_request");
 
 routes.post("/removeStoredImage", async (req, res) => {
   const id = req.body.id;
@@ -53,30 +17,49 @@ routes.post("/removeStoredImage", async (req, res) => {
 routes.post("/text2Image", async (req, res) => {
   const { prompt, id, imageCount, style } = req.body;
   const date = new Date().toISOString();
-  await aiMethods.text2Image(id, style, prompt, imageCount).then(async (_) => {
-    await aiMethods.setReference(id, style).then(async (_) => {
-      setTimeout(async () => {
-        await aiMethods.getDownloadUrl(id, style).then(async (downloadUrl) => {
-          fs.unlink(os.tmpdir() + `/${id}.jpg`, (err) => {});
+  await aiMethods
+    .text2Image(id, style, prompt, imageCount)
+    .then(async (_) => {
+      await aiMethods
+        .setReference(id, style)
+        .then(async (_) => {
           setTimeout(async () => {
-            res.status(200).json({
-              image_info: {
-                id: id,
-                url: await downloadUrl[0],
-                creation_date: date,
-                filter: style,
-              },
-              prompt: prompt,
-            });
-          }, 2000);
+            await aiMethods
+              .getDownloadUrl(id, style)
+              .then(async (downloadUrl) => {
+                fs.unlink(os.tmpdir() + `/${id}.jpg`, (err) => {});
+                setTimeout(async () => {
+                  res.status(200).json({
+                    image_info: {
+                      id: id,
+                      url: await downloadUrl[0],
+                      creation_date: date,
+                      filter: style,
+                    },
+                    prompt: prompt,
+                  });
+                }, 2000);
+              })
+              .catch((err) => {
+                console.log(err);
+                res.status(400).json(err);
+              });
+          }, 1500);
+        })
+        .catch((err) => {
+          console.log(err);
+          res.status(400).json(err);
         });
-      }, 1500);
+    })
+    .catch((err) => {
+      console.log(err);
+      res.status(400).json(err);
     });
-  });
 });
 
 routes.post("/editImage", async (req, res) => {
-  const { url, id, style, imageCount, textPrompt, originalPrompt } = req.body;
+  const { url, id, style, imageCount, textPrompt, originalPrompt, allEdits } =
+    req.body;
   const style_preset = String(style).replace(" ", "-").toLocaleLowerCase();
   const newId = `${id}_${aiMethods.makeId(5)}`;
   const date = new Date().toISOString();
@@ -100,19 +83,112 @@ routes.post("/editImage", async (req, res) => {
                       creation_date: date,
                       filter: style,
                     },
-                    original_prompt: originalPrompt,
-                    prompt: textPrompt,
+                    prompt: originalPrompt,
+                    edits: allEdits,
                   });
                 }, 2000);
+              })
+              .catch((err) => {
+                console.log(err);
+                res.status(400).json(err);
               });
           }, 1500);
         })
         .catch((err) => {
-          console.log(err.message);
+          console.log(err);
+          res.status(400).json(err);
         });
     })
     .catch((err) => {
-      console.log(err.message);
+      console.log(err);
+      res.status(400).json(err);
+    });
+});
+
+routes.post("/altImage", async (req, res) => {
+  const { id, prompt, style } = req.body;
+  const date = new Date().toISOString();
+  const style_preset =
+    style.toLocaleLowerCase().replace(" ", "-") + "-generator";
+  await aiMethods
+    .deepAiImage(id, prompt, style_preset)
+    .then(async (_) => {
+      await aiMethods
+        .setReference(id, style)
+        .then(async (_) => {
+          setTimeout(async () => {
+            await aiMethods
+              .getDownloadUrl(id, style)
+              .then(async (downloadUrl) => {
+                setTimeout(async () => {
+                  res.status(200).json({
+                    image_info: {
+                      id: id,
+                      url: await downloadUrl[0],
+                      creation_date: date,
+                      filter: style,
+                    },
+                    prompt: prompt,
+                  });
+                }, 2000);
+              })
+              .catch((err) => {
+                console.log(err);
+                res.status(400).json(err);
+              });
+          }, 1500);
+        })
+        .catch((err) => {
+          console.log(err);
+          res.status(400).json(err);
+        });
+    })
+    .catch((err) => {
+      res.status(400).json(err);
+    });
+});
+
+routes.post("/altImageEdit", async (req, res) => {
+  const { id, url, prompt, style, originalPrompt, allEdits } = req.body;
+  const date = new Date().toISOString();
+  const newId = `${id}_${aiMethods.makeId(5)}`;
+  aiMethods
+    .deepAiImageEdit(newId, url, prompt)
+    .then(async (_) => {
+      // await aiMethods
+      //   .setReference(newId, style)
+      //   .then(async (_) => {
+      //     setTimeout(async () => {
+      //       await aiMethods
+      //         .getDownloadUrl(newId, style)
+      //         .then(async (downloadUrl) => {
+      //           fs.unlink(os.tmpdir() + `/${newId}.jpg`, (err) => {});
+      //           setTimeout(async () => {
+      //             res.status(200).json({
+      //               image_info: {
+      //                 id: newId,
+      //                 url: await downloadUrl[0],
+      //                 creation_date: date,
+      //                 filter: style,
+      //               },
+      //               prompt: originalPrompt,
+      //               edits: allEdits,
+      //             });
+      //           }, 2000);
+      //         })
+      //         .catch((err) => {
+      //           console.log(err);
+      //           res.status(400).json(err);
+      //         });
+      //     }, 1500);
+      //})
+      // .catch((err) => {
+      //   console.log(err);
+      //   res.status(400).json(err);
+      // });
+    })
+    .catch((err) => {
+      res.status(400).json(err);
     });
 });
 
@@ -154,6 +230,23 @@ routes.post("/create_wallpaper", async (req, res) => {
       });
     });
   });
+});
+
+routes.post("/accountCheck", async (req, res) => {
+  const { uid } = req.body;
+  const isLoading = accountCheck.checkIfAccountIsLoading(uid);
+  if (isLoading) {
+    res.status(400).json({ processRequest: false });
+  } else {
+    accountCheck.setAccountLoading(uid);
+    res.status(200).json({ processRequest: true });
+  }
+});
+
+routes.post("/removeAccountRemotely", async (req, res) => {
+  const { uid } = req.body;
+  accountCheck.removeLoadedAccount(uid);
+  res.status(200).json({ message: "removed request" });
 });
 
 module.exports = routes;

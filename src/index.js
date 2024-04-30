@@ -1,6 +1,5 @@
 const express = require("express");
 const aiRoutes = require("./routes/image-routes");
-const stripeRoutes = require("./routes/stripe-routes");
 const pageRoutes = require("./routes/page-routes");
 const chatRoutes = require("./routes/chat-routes");
 const functions = require("firebase-functions");
@@ -15,7 +14,6 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cors());
 
 app.use("/api", aiRoutes);
-app.use("/stripe", stripeRoutes);
 app.use("/pages", pageRoutes);
 app.use("/chats", chatRoutes);
 

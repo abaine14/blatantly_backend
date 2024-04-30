@@ -1,51 +1,60 @@
-const { random } = require("lodash");
 const geminiConfig = require("./gemini.json");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
-const { response } = require("express");
 
 // Access your API key as an environment variable (see "Set up your API key" above)
 const genAI = new GoogleGenerativeAI(geminiConfig.apiKey);
+const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+const enhancmentDriver =
+  "Using 175 characters or less, provide an image prompt for";
 
-exports.chatPrompt = async (prompt, style, chatCase) => {
-  let adjustedPrompt;
-  let originalPrompt;
-  const randomTextYield = randomizerText(style);
-  const enhancemnetDriver =
-    "Using 175 characters or less, provide an image prompt for";
-  switch (chatCase) {
-    case "Chat":
-      adjustedPrompt = prompt;
-      originalPrompt = prompt;
-      break;
-    case "Enhance Prompt":
-      adjustedPrompt = enhancemnetDriver + prompt;
-      originalPrompt = prompt;
-      break;
-    case "Randomize":
-      adjustedPrompt = enhancemnetDriver + randomTextYield;
-      originalPrompt = String(randomTextYield)
-        .replace("(", "")
-        .replace(")", "");
-      break;
-
-    default:
-      break;
-  }
-  const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-  const result = await model.generateContent(adjustedPrompt);
-  const response = await result.response;
-
-  const chatRespose = {
+exports.chatPrompt = async (prompt, chatCase) => {
+  const result = await model.generateContent(prompt);
+  const response = result.response;
+  const chatResponse = {
     chat_data: {
       id: makeId(16),
-      originalChat: originalPrompt,
+      originalChat: prompt,
       response: response.text(),
       creation_date: new Date().toISOString(),
       type: chatCase,
     },
   };
-
-  return chatRespose;
+  return chatResponse;
+};
+exports.enhancedPrompt = async (prompt, chatCase) => {
+  const result = await model.generateContent(`${enhancmentDriver} ${prompt}`);
+  const response = result.response;
+  const chatResponse = {
+    chat_data: {
+      id: makeId(16),
+      originalChat: prompt,
+      response: response.text(),
+      creation_date: new Date().toISOString(),
+      type: chatCase,
+    },
+  };
+  return chatResponse;
+};
+exports.randomPrompt = async (prompt, style, chatCase) => {
+  const randomPrompt = String(randomizerText(style))
+    .replace("(", "")
+    .replace(")", "")
+    .replace("*", "")
+    .replace("Image Prompt", "");
+  const result = await model.generateContent(
+    `${enhancmentDriver} ${randomPrompt}`
+  );
+  const response = result.response;
+  const chatResponse = {
+    chat_data: {
+      id: makeId(16),
+      originalChat: prompt,
+      response: response.text(),
+      creation_date: new Date().toISOString(),
+      type: chatCase,
+    },
+  };
+  return chatResponse;
 };
 
 const randomizerText = (style) => {

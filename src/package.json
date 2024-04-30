@@ -30,13 +30,15 @@
 
     "firebase-admin": "^11.10.1",
 
-    "firebase-functions": "^4.5.0",
+    "firebase-functions": "^4.7.0",
 
     "image-to-base64": "^2.2.0",
 
     "jimp": "^0.22.10",
 
     "lodash": "^4.17.21",
+
+    "node-cache": "^5.1.2",
 
     "node-fetch": "^2.6.11",
 
